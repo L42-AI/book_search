@@ -1,44 +1,38 @@
 import requests
 from bs4 import BeautifulSoup
 
-def scrape_book_info(book_name):
-    # Format the book name for the URL
+
+def scrape_book_info(book_name: str) -> tuple[str, str, str]:
+    """
+    Scrapes book information from bol.com based on the provided book name.
+
+    Args:
+        book_name (str): The name of the book.
+
+    Returns:
+        tuple[str, str, str]: A tuple containing the image link, title, and author of the book.
+    """
     formatted_book_name = book_name.replace(' ', '+')
+    url = f'https://www.bol.com/nl/nl/s/?searchtext={formatted_book_name}'
 
-    # Construct the search URL
-    url = f'https://www.bol.com/nl/nl/l/{formatted_book_name}'
-
-    # Send a GET request to the URL
     response = requests.get(url)
+    if response.status_code != 200:
+        raise Exception('URL error')
 
-    if response.status_code == 200:
-        # Parse the HTML content
-        soup = BeautifulSoup(response.content, 'html.parser')
+    # Parse the HTML content
+    soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extract book information
-        title = soup.find('h1', class_='product-title').text.strip()
-        author = soup.find('a', class_='product-subtitel').text.strip()
-        price = soup.find('div', class_='promo-price').text.strip()
-        description = soup.find('span', class_='long-description').text.strip()
-        
-        # Additional information you may want to extract:
-        # - ISBN
-        # - Publisher
-        # - Publication date
-        # - Book cover image URL
+    # Find the list item of interest using XPath
+    uri = soup.find('ul', {'class': "list-view product-list js_multiple_basket_buttons_page"}).find('li').find('a').get('href')
+    url = f'https://www.bol.com{uri}'
 
-        # Print the extracted information
-        print('Title:', title)
-        print('Author:', author)
-        print('Price:', price)
-        print('Description:', description)
+    response = requests.get(url)
+    if response.status_code != 200:
+        raise Exception('SUB URL error')
 
-        # Add code to update your Notion database with the extracted information
-        # You'll need to use the Notion API or the unofficial Python client for Notion
+    sub_soup = BeautifulSoup(response.content, 'html.parser')
 
-    else:
-        print('Failed to fetch book information.')
-
-# Example usage
-book_name = input('Enter the name of the book: ')
-scrape_book_info(book_name)
+    img_link = sub_soup.find('div', {'class': 'image-slot'}).find('img').get('src')
+    title = sub_soup.find('h1', {'class': "page-heading"}).find('span').text.strip()
+    author = sub_soup.find('div', {'class': "pdp-header__meta-item"}).find('a').text.strip()
+    return img_link, title, author
